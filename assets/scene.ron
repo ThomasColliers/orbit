@@ -9,7 +9,10 @@ Prefab (
     entities: [
         ( // camera
             data: (
-                transform: (),
+                transform: (
+                    translation: (0.0, 0.0, 4.0),
+                    rotation: (0.0, 1.0, 0.0, 0.0),
+                ),
                 camera: Perspective(
                     aspect: 1.3,
                     fovy: 1.0471975512,
@@ -20,7 +23,7 @@ Prefab (
                     base_fovx: 1.361356817,
                     base_aspect_ratio: (13, 10),
                 ),
-                control_tag: (arc_ball: (3, 10.),),
+                control_tag: (arc_ball: (3, 5.),),
             ),
         ),
         ( // light
@@ -31,7 +34,7 @@ Prefab (
                 ),
                 light: (
                     light: Point((
-                        intensity: 10.0,
+                        intensity: 15.0,
                         color: (1.0, 1.0, 1.0),
                         radius: 5.0,
                     ))
@@ -45,13 +48,12 @@ Prefab (
         ),
         ( // planet
             data: (
-                graphics: (
-                    mesh: Shape((shape: Sphere(32, 32))),
-                    material: (
-                        albedo: Generate(Srgba(1.0, 1.0, 1.0, 1.0)),
-                    ),
+                transform: (
+                    scale: (1.0, 1.0, 1.0),
+                    translation: (0.0, 0.0, 0.0),
+                    rotation: (0.0, 1.0, 0.0, 0.0),
                 ),
-                transform:(),
+                gltf: File("mesh/planet.gltf", ()),
             ),
         ),
     ],

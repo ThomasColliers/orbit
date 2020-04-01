@@ -1,4 +1,6 @@
 (
   title: "orbit",
   dimensions: Some((500, 500)),
+  multisampling: 4,
+  vsync: false,
 )

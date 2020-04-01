@@ -6,8 +6,8 @@
 
 ## goals
 
-1) Realitic planet, prepare in blender and try to do the same in Amethyst
-2) Rotation mouse controls
+1) Planet, prepare in blender and try to do reproduce in amethyst
+2) Replace rotation mouse controls
 3) Sun that lights the planet
 4) Space 360 map
 5) You spawn from the planet itself, rising from the surface
@@ -40,5 +40,11 @@ Possible options
 
 ## roadmap 
 
-- Camera rotate controls
-- FPS output
+- FPS output UI
+- Toggle help menu with shortcuts
+- Toggle debug grid
+- Prepare other maps in the default rendy pbr material
+- Custom shader for clouds
+- Custom shader for the atmosphere
+- Stars background
+- FXAA antialiasing (because other AA is deeply embedded in the pipeline)

@@ -1,8 +1,12 @@
+mod debug;
+
 use amethyst::{
-    assets::{PrefabLoader, PrefabLoaderSystemDesc, RonFormat, PrefabData, ProgressCounter },
+    assets::{PrefabLoader, PrefabLoaderSystemDesc, RonFormat, PrefabData, ProgressCounter, AssetPrefab },
     core::{
         shrev::{EventChannel, ReaderId},
-        Transform,TransformBundle
+        Transform,TransformBundle,
+        math::{Point3, Vector3},
+        Time
     },
     derive::{PrefabData, SystemDesc},
     ecs::{Entity, Read, ReadExpect, ReadStorage, System, SystemData, WorldExt, WriteStorage, Join},
@@ -10,14 +14,17 @@ use amethyst::{
         Application, Builder, GameData, GameDataBuilder, SimpleState, SimpleTrans, StateData,
         StateEvent, Trans,
     },
+    gltf::{GltfSceneLoaderSystemDesc, GltfSceneAsset, GltfSceneFormat},
     renderer::{
         camera::{Camera, CameraPrefab},
         formats::GraphicsPrefab,
         light::LightPrefab,
-        plugins::{RenderShaded3D, RenderToWindow},
+        debug_drawing::{ DebugLines, DebugLinesComponent, DebugLinesParams },
+        plugins::{RenderPbr3D, RenderToWindow, RenderDebugLines },
         rendy::mesh::{Normal, Position, Tangent, TexCoord},
         types::DefaultBackend,
         RenderingBundle,
+        palette::Srgba,
     },
     utils::{
         application_root_dir, 
@@ -40,6 +47,7 @@ use serde::{Deserialize, Serialize};
 #[serde(default)]
 struct ScenePrefab {
     graphics: Option<GraphicsPrefab<(Vec<Position>, Vec<Normal>, Vec<Tangent>, Vec<TexCoord>)>>,
+    gltf: Option<AssetPrefab<GltfSceneAsset, GltfSceneFormat>>,
     transform: Option<Transform>,
     light: Option<LightPrefab>,
     camera: Option<CameraPrefab>,
@@ -55,6 +63,13 @@ struct MainState;
 
 impl SimpleState for MainState {
     fn on_start(&mut self, data: StateData<'_, GameData<'_, '_>>) {
+        // setup the debug lines as a resoruce
+        data.world.insert(DebugLines::new());
+        data.world.insert(DebugLinesParams { line_width: 1.0 });        
+        // and create the component and entity
+        data.world.register::<DebugLinesComponent>();
+        data.world.create_entity().with(debug::create_debug_lines()).build();
+
         // load the scene from the ron file
         let handle = data.world.exec(|loader: PrefabLoader<'_, ScenePrefab>| {
             loader.load("scene.ron", RonFormat, ())
@@ -96,7 +111,7 @@ impl<'a> System<'a> for CameraDistanceSystem {
 
     fn run(&mut self, (events, transforms, mut tags): Self::SystemData) {
         for event in events.read(&mut self.event_reader) {
-            if let InputEvent::MouseWheelMoved(direction) = *event {
+            /*if let InputEvent::MouseWheelMoved(direction) = *event {
                 match direction {
                     ScrollDirection::ScrollUp => {
                         for (_, tag) in (&transforms, &mut tags).join() {
@@ -112,7 +127,7 @@ impl<'a> System<'a> for CameraDistanceSystem {
                     }
                     _ => (),
                 }
-            }
+            }*/
         }
     }
 }
@@ -132,10 +147,15 @@ fn main() -> amethyst::Result<()> {
     let game_data = GameDataBuilder::default()
         .with_system_desc(
             PrefabLoaderSystemDesc::<ScenePrefab>::default(), 
-            "prefab", 
+            "scene_loader", 
             &[]
         )
-        .with(AutoFovSystem::new(), "auto_fov", &["prefab"])
+        .with_system_desc(
+            GltfSceneLoaderSystemDesc::default(),
+            "gltf_loader",
+            &["scene_loader"]
+        )
+        .with(AutoFovSystem::new(), "auto_fov", &["scene_loader"])
         .with_bundle(TransformBundle::new())?
         .with_bundle(
             InputBundle::<StringBindings>::new().with_bindings_from_file(&key_bindings_path)?,
@@ -152,7 +172,8 @@ fn main() -> amethyst::Result<()> {
                 .with_plugin(
                     RenderToWindow::from_config_path(display_config_path)?.with_clear([0.0, 0.0, 0.0, 1.0]),
                 )
-                .with_plugin(RenderShaded3D::default())
+                .with_plugin(RenderPbr3D::default())
+                .with_plugin(RenderDebugLines::default())
                 .with_plugin(RenderUi::default()),
         )?;
 
