@@ -40,10 +40,12 @@ Possible options
 
 ## roadmap 
 
-- FPS output UI
 - Toggle help menu with shortcuts
+
 - Toggle debug grid
+
 - Prepare other maps in the default rendy pbr material
+
 - Custom shader for clouds
 - Custom shader for the atmosphere
 - Stars background

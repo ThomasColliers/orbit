@@ -6,7 +6,8 @@ use amethyst::{
         shrev::{EventChannel, ReaderId},
         Transform,TransformBundle,
         math::{Point3, Vector3},
-        Time
+        Time,
+        frame_limiter::FrameRateLimitStrategy,
     },
     derive::{PrefabData, SystemDesc},
     ecs::{Entity, Read, ReadExpect, ReadStorage, System, SystemData, WorldExt, WriteStorage, Join},
@@ -29,6 +30,7 @@ use amethyst::{
     utils::{
         application_root_dir, 
         auto_fov::{AutoFov, AutoFovSystem},
+        fps_counter::{FpsCounter, FpsCounterBundle},
         tag::{Tag, TagFinder},
         removal::Removal
     },
@@ -59,7 +61,10 @@ struct ScenePrefab {
 #[derive(Clone, Default)]
 struct ShowFov;
 
-struct MainState;
+#[derive(Default)]
+struct MainState {
+    fps_display: Option<Entity>,
+}
 
 impl SimpleState for MainState {
     fn on_start(&mut self, data: StateData<'_, GameData<'_, '_>>) {
@@ -75,6 +80,37 @@ impl SimpleState for MainState {
             loader.load("scene.ron", RonFormat, ())
         });
         data.world.create_entity().with(handle).build();
+
+        // load the ui
+        data.world.exec(|mut creator: UiCreator<'_>| {
+            creator.create("ui.ron",());
+        });
+    }
+
+    fn update(&mut self, state_data: &mut StateData<'_, GameData<'_, '_>>) -> SimpleTrans {
+        let StateData { world, .. } = state_data;
+
+        // get reference to the ui element
+        if self.fps_display.is_none() {
+            world.exec(|finder: UiFinder<'_>| {
+                if let Some(entity) = finder.find("fps_text") {
+                    self.fps_display = Some(entity);
+                }
+            })
+        }
+
+        // update the ui
+        let mut ui_text = world.write_storage::<UiText>();
+        {
+            if let Some(fps_display) = self.fps_display.and_then(|entity| ui_text.get_mut(entity)) {
+                if world.read_resource::<Time>().frame_number() % 20 == 0 {
+                    let fps = world.read_resource::<FpsCounter>().sampled_fps();
+                    fps_display.text = format!("FPS: {:.*}", 2, fps);
+                }
+            }
+        }
+
+        Trans::None
     }
 
     // handle events
@@ -136,7 +172,7 @@ fn main() -> amethyst::Result<()> {
     // start logging
     amethyst::start_logger(Default::default());
 
-    // directories
+    // directories and configuration files
     let app_root = application_root_dir()?;
     let assets_dir = app_root.join("assets");
     let config_dir = app_root.join("config");
@@ -167,6 +203,7 @@ fn main() -> amethyst::Result<()> {
             &["input_system"],
         )
         .with_bundle(UiBundle::<StringBindings>::new())?
+        .with_bundle(FpsCounterBundle::default())?
         .with_bundle(
             RenderingBundle::<DefaultBackend>::new()
                 .with_plugin(
@@ -177,7 +214,11 @@ fn main() -> amethyst::Result<()> {
                 .with_plugin(RenderUi::default()),
         )?;
 
-    let mut game = Application::new(assets_dir, MainState, game_data)?;
+    // build application and run it
+    let mut game = Application::build(assets_dir, MainState::default())?
+        .with_frame_limit(FrameRateLimitStrategy::Unlimited, 9999) // this doesn't seem to work at the moment
+        .build(game_data)?;
     game.run();
+
     Ok(())
 }
