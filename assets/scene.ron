@@ -26,20 +26,16 @@ Prefab (
                 control_tag: (arc_ball: (3, 5.),),
             ),
         ),
-        ( // light
+        ( // sunlight
             data: (
-                transform: (
-                    translation: (2.0, 2.0, -2.0),
-                    rotation: (0.0, 1.0, 0.0, 0.0),
-                ),
                 light: (
-                    light: Point((
-                        intensity: 15.0,
-                        color: (1.0, 1.0, 1.0),
-                        radius: 5.0,
+                    light: Directional((
+                        color: (1.0,1.0,0.9),
+                        direction: [100.0, 0.0, 0.0],
+                        intensity: 10.0,
                     ))
-                ),
-            ),
+                )
+            )
         ),
         (
             data: (
