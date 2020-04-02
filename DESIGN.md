@@ -40,8 +40,6 @@ Possible options
 
 ## roadmap 
 
-- Toggle help menu with shortcuts
-
 - Toggle debug grid
 
 - Prepare other maps in the default rendy pbr material

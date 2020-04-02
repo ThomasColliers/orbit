@@ -128,47 +128,6 @@ impl SimpleState for MainState {
     }
 }
 
-#[derive(SystemDesc)]
-#[system_desc(name(CameraDistanceSystemDesc))]
-struct CameraDistanceSystem {
-    #[system_desc(event_channel_reader)]
-    event_reader: ReaderId<InputEvent<StringBindings>>,
-}
-impl CameraDistanceSystem {
-    pub fn new(event_reader: ReaderId<InputEvent<StringBindings>>) -> Self {
-        CameraDistanceSystem { event_reader }
-    }
-}
-impl<'a> System<'a> for CameraDistanceSystem {
-    type SystemData = (
-        Read<'a, EventChannel<InputEvent<StringBindings>>>,
-        ReadStorage<'a, Transform>,
-        WriteStorage<'a, ArcBallControlTag>,
-    );
-
-    fn run(&mut self, (events, transforms, mut tags): Self::SystemData) {
-        for event in events.read(&mut self.event_reader) {
-            /*if let InputEvent::MouseWheelMoved(direction) = *event {
-                match direction {
-                    ScrollDirection::ScrollUp => {
-                        for (_, tag) in (&transforms, &mut tags).join() {
-                            tag.distance *= 0.9;
-                            println!("scroll up {}", tag.distance);
-                        }
-                    }
-                    ScrollDirection::ScrollDown => {
-                        for (_, tag) in (&transforms, &mut tags).join() {
-                            tag.distance *= 1.1;
-                            println!("scroll down {}", tag.distance);
-                        }
-                    }
-                    _ => (),
-                }
-            }*/
-        }
-    }
-}
-
 fn main() -> amethyst::Result<()> {
     // start logging
     amethyst::start_logger(Default::default());
@@ -211,11 +170,6 @@ fn main() -> amethyst::Result<()> {
         .with_bundle(UiBundle::<StringBindings>::new())?
         .with_bundle(FpsCounterBundle::default())?
         .with_bundle(ArcBallControlBundle::<StringBindings>::new())?
-        .with_system_desc(
-            CameraDistanceSystemDesc::default(),
-            "camera_distance_system",
-            &["input_system"],
-        )
         .with_system_desc(
             debug::DebugSystemDesc::default(),
             "debug_sytem",

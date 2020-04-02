@@ -2,43 +2,53 @@ use amethyst::{
     core::{
         math::{Point3, Vector3},
         HiddenPropagate,
+        shrev::{EventChannel, ReaderId},
     },
     renderer::{
         debug_drawing::{DebugLinesComponent},
         palette::Srgba,
     },
     derive::SystemDesc,
-    ecs::prelude::{Join, Read, ReadStorage, System, SystemData, WriteStorage},
-    input::{InputHandler, StringBindings},
+    ecs::prelude::{Join, Read, ReadStorage, System, SystemData, WriteStorage, Entity},
+    input::{InputHandler, StringBindings, InputEvent},
     ui::{RenderUi, UiBundle, UiCreator, UiFinder, UiText},
 };
 
 #[derive(SystemDesc)]
 #[system_desc(name(DebugSystemDesc))]
-pub struct DebugSystem;
+pub struct DebugSystem {
+    #[system_desc(event_channel_reader)]
+    event_reader: ReaderId<InputEvent<StringBindings>>,
+}
 
 impl DebugSystem {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(event_reader: ReaderId<InputEvent<StringBindings>>) -> Self {
+        Self { event_reader }
     }
 }
 
 impl<'s> System<'s> for DebugSystem {
     type SystemData = (
-        Read<'s, InputHandler<StringBindings>>,
+        Read<'s, EventChannel<InputEvent<StringBindings>>>,
         UiFinder<'s>,
         WriteStorage<'s, HiddenPropagate>,
     );
 
-    fn run(&mut self, (input, ui_finder, mut hidden): Self::SystemData) {
-        // help button
-        let help_pressed = input.action_is_down("help").unwrap_or(false);
-        if help_pressed {
-            println!("help pressed");
-            if let Some(entity) = ui_finder.find("help_container") {
-                match hidden.get(entity) {
-                    Some(_) => { println!("show"); hidden.remove(entity); },
-                    None => { println!("hide"); hidden.insert(entity, HiddenPropagate::new()).ok(); },
+    fn run(&mut self, (events, ui_finder, mut hidden): Self::SystemData) {
+        for event in events.read(&mut self.event_reader) {
+            if let InputEvent::ActionPressed(action) = event {
+                let mut toggle_entity_display = |label| {
+                    if let Some(entity) = ui_finder.find(label) {
+                        match hidden.get(entity) {
+                            Some(_) => { hidden.remove(entity); },
+                            None => { hidden.insert(entity, HiddenPropagate::new()).ok(); },
+                        }
+                    }
+                };
+                match action.as_str() {
+                    "help" => { toggle_entity_display("help_container"); },
+                    "fps" => { toggle_entity_display("fps_text"); },
+                    _ => ()
                 }
             }
         }
