@@ -8,7 +8,7 @@ use amethyst::{
         math::{Point3, Vector3},
         Time,
         frame_limiter::FrameRateLimitStrategy,
-        HideHierarchySystemDesc,
+        HideHierarchySystemDesc, HiddenPropagate,
     },
     derive::{PrefabData, SystemDesc},
     ecs::{Entity, Read, ReadExpect, ReadStorage, System, SystemData, WorldExt, WriteStorage, Join},
@@ -56,11 +56,7 @@ struct ScenePrefab {
     camera: Option<CameraPrefab>,
     auto_fov: Option<AutoFov>,
     control_tag: Option<ControlTagPrefab>,
-    show_fov_tag: Option<Tag<ShowFov>>,
 }
-
-#[derive(Clone, Default)]
-struct ShowFov;
 
 #[derive(Default)]
 struct MainState {
@@ -71,10 +67,9 @@ impl SimpleState for MainState {
     fn on_start(&mut self, data: StateData<'_, GameData<'_, '_>>) {
         // setup the debug lines as a resoruce
         data.world.insert(DebugLines::new());
-        data.world.insert(DebugLinesParams { line_width: 1.0 });        
+        data.world.insert(DebugLinesParams { line_width: 0.5 });        
         // and create the component and entity
         data.world.register::<DebugLinesComponent>();
-        data.world.create_entity().with(debug::create_debug_lines()).build();
 
         // load the scene from the ron file
         let handle = data.world.exec(|loader: PrefabLoader<'_, ScenePrefab>| {
