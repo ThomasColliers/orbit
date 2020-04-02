@@ -1,19 +1,61 @@
 #![enable(implicit_some)]
-Label(
+Container(
     transform: (
-        id: "fps_text",
-        anchor: TopLeft,
-        x: 80.,
-        y: -25.,
-        width: 120.,
-        height: 50.,
-        transparent: true,
+        id: "main_container",
+        anchor: Middle,
+        stretch: XY( x_margin: 0., y_margin: 0., keep_aspect_ratio: false),
+        width: 20.,
+        height: 20.,
     ),
-    text: (
-        text: "N/A",
-        font_size: 25.,
-        color: (1., 1., 1., 1.),
-        align: MiddleLeft,
-        font: File("font/SpaceMono-Regular.ttf", ("TTF", ())),
-    ),
+    children: [
+        Label(
+            transform: (
+                id: "fps_text",
+                anchor: TopLeft,
+                x: 80.,
+                y: -25.,
+                width: 120.,
+                height: 50.,
+                transparent: true,
+            ),
+            text: (
+                text: "N/A",
+                font_size: 25.,
+                color: (1., 1., 1., 1.),
+                align: MiddleLeft,
+                font: File("font/SpaceMono-Regular.ttf", ("TTF", ())),
+            ),
+        ),
+        Container(
+            transform: (
+                id: "help_container",
+                width:450.,
+                height: 210.,
+                anchor: BottomRight,
+                hidden: true,
+            ),
+            background: SolidColor(0.01,0.01,0.01,0.4),
+            children: [
+                Label(
+                    transform: (
+                        id: "help_text",
+                        x: 0.,
+                        y: 0.,
+                        with: 200.,
+                        height: 200.,
+                        stretch: XY( x_margin: 10., y_margin: 10., keep_aspect_ratio: false),
+                        anchor: Middle,
+                    ),
+                    text: (
+                        text: "Shortcuts:\n h - toggle help panel\n d - toggle debug lines\n f - toggle framerate",
+                        font_size: 20.,
+                        color: (1.,1.,1.,1.),
+                        line_mode: Wrap,
+                        align: TopLeft,
+                        font: File("font/SpaceMono-Regular.ttf", ("TTF", ())),
+                    )
+                )
+            ]
+        )
+    ]
 )

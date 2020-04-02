@@ -1,12 +1,49 @@
 use amethyst::{
     core::{
         math::{Point3, Vector3},
+        HiddenPropagate,
     },
     renderer::{
         debug_drawing::{DebugLinesComponent},
         palette::Srgba,
-    }
+    },
+    derive::SystemDesc,
+    ecs::prelude::{Join, Read, ReadStorage, System, SystemData, WriteStorage},
+    input::{InputHandler, StringBindings},
+    ui::{RenderUi, UiBundle, UiCreator, UiFinder, UiText},
 };
+
+#[derive(SystemDesc)]
+#[system_desc(name(DebugSystemDesc))]
+pub struct DebugSystem;
+
+impl DebugSystem {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl<'s> System<'s> for DebugSystem {
+    type SystemData = (
+        Read<'s, InputHandler<StringBindings>>,
+        UiFinder<'s>,
+        WriteStorage<'s, HiddenPropagate>,
+    );
+
+    fn run(&mut self, (input, ui_finder, mut hidden): Self::SystemData) {
+        // help button
+        let help_pressed = input.action_is_down("help").unwrap_or(false);
+        if help_pressed {
+            println!("help pressed");
+            if let Some(entity) = ui_finder.find("help_container") {
+                match hidden.get(entity) {
+                    Some(_) => { println!("show"); hidden.remove(entity); },
+                    None => { println!("hide"); hidden.insert(entity, HiddenPropagate::new()).ok(); },
+                }
+            }
+        }
+    }
+}
 
 pub fn create_debug_lines() -> DebugLinesComponent {
     let mut debug_lines_component = DebugLinesComponent::with_capacity(100);

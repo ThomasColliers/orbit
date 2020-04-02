@@ -8,6 +8,7 @@ use amethyst::{
         math::{Point3, Vector3},
         Time,
         frame_limiter::FrameRateLimitStrategy,
+        HideHierarchySystemDesc,
     },
     derive::{PrefabData, SystemDesc},
     ecs::{Entity, Read, ReadExpect, ReadStorage, System, SystemData, WorldExt, WriteStorage, Join},
@@ -177,7 +178,13 @@ fn main() -> amethyst::Result<()> {
     let assets_dir = app_root.join("assets");
     let config_dir = app_root.join("config");
     let display_config_path = config_dir.join("display.ron");
-    let key_bindings_path = config_dir.join("input.ron");
+    let key_bindings_path = {
+        if cfg!(feature = "sdl_controller") {
+            assets_dir.join("input_controller.ron")
+        } else {
+            assets_dir.join("input.ron")
+        }
+    };
 
     // build gamedata
     let game_data = GameDataBuilder::default()
@@ -191,19 +198,29 @@ fn main() -> amethyst::Result<()> {
             "gltf_loader",
             &["scene_loader"]
         )
-        .with(AutoFovSystem::new(), "auto_fov", &["scene_loader"])
         .with_bundle(TransformBundle::new())?
+        .with_system_desc(
+            HideHierarchySystemDesc::default(),
+            "hide_hierarchy_system",
+            &["parent_hierarchy_system"]
+        )
+        .with(AutoFovSystem::new(), "auto_fov", &["scene_loader"])
         .with_bundle(
-            InputBundle::<StringBindings>::new().with_bindings_from_file(&key_bindings_path)?,
+            InputBundle::<StringBindings>::new().with_bindings_from_file(key_bindings_path)?,
         )?
+        .with_bundle(UiBundle::<StringBindings>::new())?
+        .with_bundle(FpsCounterBundle::default())?
         .with_bundle(ArcBallControlBundle::<StringBindings>::new())?
         .with_system_desc(
             CameraDistanceSystemDesc::default(),
             "camera_distance_system",
             &["input_system"],
         )
-        .with_bundle(UiBundle::<StringBindings>::new())?
-        .with_bundle(FpsCounterBundle::default())?
+        .with_system_desc(
+            debug::DebugSystemDesc::default(),
+            "debug_sytem",
+            &["input_system"]
+        )
         .with_bundle(
             RenderingBundle::<DefaultBackend>::new()
                 .with_plugin(
