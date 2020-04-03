@@ -1,24 +1,22 @@
 mod debug;
+mod planet;
 
 use amethyst::{
     assets::{PrefabLoader, PrefabLoaderSystemDesc, RonFormat, PrefabData, ProgressCounter, AssetPrefab },
     core::{
-        shrev::{EventChannel, ReaderId},
         Transform,TransformBundle,
-        math::{Point3, Vector3},
-        Time,
         frame_limiter::FrameRateLimitStrategy,
-        HideHierarchySystemDesc, HiddenPropagate,
+        HideHierarchySystemDesc,
     },
-    derive::{PrefabData, SystemDesc},
-    ecs::{Entity, Read, ReadExpect, ReadStorage, System, SystemData, WorldExt, WriteStorage, Join},
+    derive::{PrefabData},
+    ecs::{Entity, WorldExt},
     prelude::{
         Application, Builder, GameData, GameDataBuilder, SimpleState, SimpleTrans, StateData,
         StateEvent, Trans,
     },
     gltf::{GltfSceneLoaderSystemDesc, GltfSceneAsset, GltfSceneFormat},
     renderer::{
-        camera::{Camera, CameraPrefab},
+        camera::{CameraPrefab},
         formats::GraphicsPrefab,
         light::LightPrefab,
         debug_drawing::{ DebugLines, DebugLinesComponent, DebugLinesParams },
@@ -26,24 +24,22 @@ use amethyst::{
         rendy::mesh::{Normal, Position, Tangent, TexCoord},
         types::DefaultBackend,
         RenderingBundle,
-        palette::Srgba,
     },
     utils::{
         application_root_dir, 
         auto_fov::{AutoFov, AutoFovSystem},
-        fps_counter::{FpsCounter, FpsCounterBundle},
-        tag::{Tag, TagFinder},
-        removal::Removal
+        fps_counter::{FpsCounterBundle},
+        tag::{Tag},
     },
-    ui::{RenderUi, UiBundle, UiCreator, UiFinder, UiText },
+    ui::{RenderUi, UiBundle, UiCreator },
     input::{
-        is_close_requested, is_key_down, InputBundle, StringBindings, InputEvent, ScrollDirection
+        is_close_requested, is_key_down, InputBundle, StringBindings
     },
-    controls::{ArcBallControlBundle, ArcBallControlTag, ControlTagPrefab},
+    controls::{ArcBallControlBundle, ControlTagPrefab},
     winit::VirtualKeyCode,
     Error
 };
-use log::{error, info};
+use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 #[derive(Default, Deserialize, PrefabData, Serialize)]
@@ -56,12 +52,12 @@ struct ScenePrefab {
     camera: Option<CameraPrefab>,
     auto_fov: Option<AutoFov>,
     control_tag: Option<ControlTagPrefab>,
+    planet: Option<Tag<planet::Planet>>,
+    clouds: Option<Tag<planet::Clouds>>,
 }
 
 #[derive(Default)]
-struct MainState {
-    fps_display: Option<Entity>,
-}
+struct MainState;
 
 impl SimpleState for MainState {
     fn on_start(&mut self, data: StateData<'_, GameData<'_, '_>>) {
@@ -70,6 +66,11 @@ impl SimpleState for MainState {
         data.world.insert(DebugLinesParams { line_width: 0.5 });        
         // and create the component and entity
         data.world.register::<DebugLinesComponent>();
+        data.world.register::<debug::FpsDisplay>();
+
+        // register custom components
+        data.world.register::<planet::Planet>();
+        data.world.register::<planet::Clouds>();
 
         // load the scene from the ron file
         let handle = data.world.exec(|loader: PrefabLoader<'_, ScenePrefab>| {
@@ -83,33 +84,12 @@ impl SimpleState for MainState {
         });
     }
 
-    fn update(&mut self, state_data: &mut StateData<'_, GameData<'_, '_>>) -> SimpleTrans {
-        let StateData { world, .. } = state_data;
-
-        // get reference to the ui element
-        if self.fps_display.is_none() {
-            world.exec(|finder: UiFinder<'_>| {
-                if let Some(entity) = finder.find("fps_text") {
-                    self.fps_display = Some(entity);
-                }
-            })
-        }
-
-        // update the ui
-        let mut ui_text = world.write_storage::<UiText>();
-        {
-            if let Some(fps_display) = self.fps_display.and_then(|entity| ui_text.get_mut(entity)) {
-                if world.read_resource::<Time>().frame_number() % 20 == 0 {
-                    let fps = world.read_resource::<FpsCounter>().sampled_fps();
-                    fps_display.text = format!("FPS: {:.*}", 2, fps);
-                }
-            }
-        }
-
+    fn update(&mut self, _data: &mut StateData<'_, GameData<'_, '_>>) -> SimpleTrans {
+        //let StateData { world, .. } = state_data;
         Trans::None
     }
 
-    // handle events
+    // handle application level events
     fn handle_event(&mut self, _data: StateData<'_, GameData<'_, '_>>, event: StateEvent) -> SimpleTrans {
         if let StateEvent::Window(ref event) = event {
             if is_close_requested(event) || is_key_down(event, VirtualKeyCode::Escape) {
@@ -170,6 +150,11 @@ fn main() -> amethyst::Result<()> {
             "debug_sytem",
             &["input_system"]
         )
+        .with_system_desc(
+            planet::PlanetSystemDesc::default(),
+            "planet_system",
+            &[]
+        )
         .with_bundle(
             RenderingBundle::<DefaultBackend>::new()
                 .with_plugin(
@@ -182,7 +167,11 @@ fn main() -> amethyst::Result<()> {
 
     // build application and run it
     let mut game = Application::build(assets_dir, MainState::default())?
-        .with_frame_limit(FrameRateLimitStrategy::Unlimited, 9999) // this doesn't seem to work at the moment
+        //.with_frame_limit(FrameRateLimitStrategy::Unlimited, 9999) // this eats all available CPU cycles
+        .with_frame_limit(
+            FrameRateLimitStrategy::SleepAndYield(Duration::from_millis(2)),
+            144,
+        )
         .build(game_data)?;
     game.run();
 

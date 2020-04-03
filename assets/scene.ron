@@ -23,7 +23,7 @@ Prefab (
                     base_fovx: 1.361356817,
                     base_aspect_ratio: (13, 10),
                 ),
-                control_tag: (arc_ball: (3, 5.),),
+                control_tag: (arc_ball: (3, 4.),),
             ),
         ),
         ( // sunlight
@@ -50,7 +50,19 @@ Prefab (
                     rotation: (0.0, 1.0, 0.0, 0.0),
                 ),
                 gltf: File("mesh/planet.gltf", ()),
+                planet: (),
             ),
         ),
+        ( // clouds
+            data: (
+                transform: (
+                    scale: (1.005, 1.005, 1.005),
+                    translation: (0.0, 0.0, 0.0),
+                    rotation: (0.0, 1.0, 0.0, 0.0),
+                ),
+                gltf: File("mesh/clouds.gltf", ()),
+                clouds: (),
+            ),
+        )
     ],
 )

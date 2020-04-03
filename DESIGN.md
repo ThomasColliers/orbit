@@ -40,11 +40,7 @@ Possible options
 
 ## roadmap 
 
-- Toggle debug grid
-
 - Prepare other maps in the default rendy pbr material
-
-- Custom shader for clouds
 - Custom shader for the atmosphere
 - Stars background
 - FXAA antialiasing (because other AA is deeply embedded in the pipeline)
