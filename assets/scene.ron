@@ -63,6 +63,17 @@ Prefab (
                 gltf: File("mesh/clouds.gltf", ()),
                 clouds: (),
             ),
-        )
+        ),
+        ( // atmosphere
+            data: (
+                transform: (
+                    scale: (1.007, 1.007, 1.007),
+                    translation: (0.0, 0.0, 0.0),
+                    rotation: (0.0, 1.0, 0.0, 0.0),
+                ),
+                gltf: File("mesh/atmosphere.gltf", ()),
+                atmosphere: (),
+            ),
+        ),
     ],
 )

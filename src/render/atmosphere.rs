@@ -8,15 +8,19 @@ use amethyst::renderer::{
     pod::VertexArgs,
     pipeline::{PipelineDescBuilder, PipelinesBuilder},
     util,
-    visibility::Visibility,
     batch::{GroupIterator, OrderedOneLevelBatch},
 };
 use amethyst::core::{
-    ecs::{Join, Read, ReadExpect, ReadStorage, SystemData, World},
     transform::Transform,
+    transform::components::Parent,
 };
-use amethyst::assets::{AssetStorage, Handle};
-use amethyst::error::Error;
+use amethyst::{
+    ecs::{NullStorage, World},
+    ecs::prelude::{ Join, Component, SystemData, ReadStorage, Read },
+    assets::{AssetStorage, Handle},
+    error::Error,
+    utils::tag::{Tag},
+};
 use derivative::Derivative;
 use rendy::{
     command::{QueueId, RenderPassEncoder},
@@ -30,6 +34,13 @@ use rendy::{
     },
     shader::{Shader, SpirvShader},
 };
+
+// component to tag the atmosphere object
+#[derive(Clone, Default)]
+pub struct Atmosphere;
+impl Component for Atmosphere {
+    type Storage = NullStorage<Self>;
+}
 
 // plugin
 #[derive(Default, Debug)]
@@ -228,14 +239,16 @@ impl<B: Backend> RenderGroup<B, World> for DrawAtmosphere<B> {
         // get components from the ecs
         let (
             mesh_storage,
-            visibility,
             meshes,
+            atmosphere,
             transforms,
+            parents
         ) = <(
             Read<'_, AssetStorage<Mesh>>,
-            ReadExpect<'_, Visibility>,
             ReadStorage<'_, Handle<Mesh>>,
+            ReadStorage<'_, Tag<Atmosphere>>,
             ReadStorage<'_, Transform>,
+            ReadStorage<'_, Parent>
         )>::fetch(world);
 
         // prepare environemnt
@@ -249,12 +262,19 @@ impl<B: Backend> RenderGroup<B, World> for DrawAtmosphere<B> {
         let mut changed = false;
 
         // setup the batches
-        let mut joined = (&meshes, &transforms).join();
-        visibility
-            .visible_ordered
-            .iter()
-            .filter_map(|e| joined.get_unchecked(e.id()))
-            .map(|(mesh, tform)| {
+        let meshes_joined = (&meshes, &transforms, &parents).join();
+        let mut tags_joined = (&atmosphere).join();
+
+        meshes_joined.filter_map(|joindata| {
+                // we need to check if the parent has our tag
+                if let Some(_) = tags_joined.get_unchecked(joindata.2.entity.id()) {
+                    println!("Found tag");
+                    return Some(joindata);
+                }
+                None
+            })
+            .map(|(mesh, tform, _)| {
+                println!("have a valid mesh");
                 ((mesh.id()),VertexArgs::from_object_data(tform, None))
             })
             .for_each_group(|mesh_id, data| {

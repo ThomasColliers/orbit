@@ -55,6 +55,7 @@ struct ScenePrefab {
     control_tag: Option<ControlTagPrefab>,
     planet: Option<Tag<planet::Planet>>,
     clouds: Option<Tag<planet::Clouds>>,
+    atmosphere: Option<Tag<render::atmosphere::Atmosphere>>,
 }
 
 #[derive(Default)]
@@ -72,6 +73,7 @@ impl SimpleState for MainState {
         // register custom components
         data.world.register::<planet::Planet>();
         data.world.register::<planet::Clouds>();
+        data.world.register::<render::atmosphere::Atmosphere>();
 
         // load the scene from the ron file
         let handle = data.world.exec(|loader: PrefabLoader<'_, ScenePrefab>| {
