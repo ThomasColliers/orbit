@@ -67,7 +67,7 @@ Prefab (
         ( // atmosphere
             data: (
                 transform: (
-                    scale: (1.007, 1.007, 1.007),
+                    scale: (1.006, 1.006, 1.006),
                     translation: (0.0, 0.0, 0.0),
                     rotation: (0.0, 1.0, 0.0, 0.0),
                 ),

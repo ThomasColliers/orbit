@@ -140,7 +140,7 @@ fn build_custom_pipeline<B: Backend>(
                 // alpha blended
                 .with_blend_targets(vec![pso::ColorBlendDesc {
                     mask: pso::ColorMask::ALL,
-                    blend: Some(pso::BlendState::PREMULTIPLIED_ALPHA),
+                    blend: Some(pso::BlendState::ALPHA),
                 }])
         )
         .build(factory, None);
@@ -268,13 +268,11 @@ impl<B: Backend> RenderGroup<B, World> for DrawAtmosphere<B> {
         meshes_joined.filter_map(|joindata| {
                 // we need to check if the parent has our tag
                 if let Some(_) = tags_joined.get_unchecked(joindata.2.entity.id()) {
-                    println!("Found tag");
                     return Some(joindata);
                 }
                 None
             })
             .map(|(mesh, tform, _)| {
-                println!("have a valid mesh");
                 ((mesh.id()),VertexArgs::from_object_data(tform, None))
             })
             .for_each_group(|mesh_id, data| {
