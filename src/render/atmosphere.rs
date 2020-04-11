@@ -3,17 +3,17 @@
 use amethyst::renderer::{
     bundle::{Target, RenderOrder, RenderPlan, RenderPlugin},
     Backend, Factory, Mesh,
-    submodules::{DynamicVertexBuffer, EnvironmentSub, DynamicUniform },
+    submodules::{DynamicVertexBuffer, EnvironmentSub },
     ChangeDetection,
     pod::VertexArgs,
     pipeline::{PipelineDescBuilder, PipelinesBuilder},
     util,
     visibility::Visibility,
+    batch::{GroupIterator, OrderedOneLevelBatch},
 };
 use amethyst::core::{
     ecs::{Join, Read, ReadExpect, ReadStorage, SystemData, World},
     transform::Transform,
-    Hidden, HiddenPropagate,
 };
 use amethyst::assets::{AssetStorage, Handle};
 use amethyst::error::Error;
@@ -35,13 +35,6 @@ use rendy::{
 #[derive(Default, Debug)]
 pub struct RenderAtmosphere {
     target: Target,
-}
-
-impl RenderAtmosphere {
-    pub fn with_target(mut self, target: Target) -> Self {
-        self.target = target;
-        self
-    }
 }
 
 impl<B: Backend> RenderPlugin<B> for RenderAtmosphere {
@@ -78,8 +71,8 @@ lazy_static::lazy_static! {
 }
 
 // plugin desc
-#[derive(Debug, Clone, PartialEq, Derivative)]
-#[derivative(Default(bound = ""))]
+#[derive(Clone, PartialEq, Derivative)]
+#[derivative(Debug(bound = ""), Default(bound = ""))]
 pub struct DrawAtmosphereDesc;
 
 impl DrawAtmosphereDesc {
@@ -93,6 +86,7 @@ fn build_custom_pipeline<B: Backend>(
     subpass: hal::pass::Subpass<'_, B>,
     framebuffer_width: u32,
     framebuffer_height: u32,
+    vertex_format: &[VertexFormat],
     layouts: Vec<&B::DescriptorSetLayout>,
 ) -> Result<(B::GraphicsPipeline, B::PipelineLayout), failure::Error> {
     let pipeline_layout = unsafe {
@@ -101,22 +95,25 @@ fn build_custom_pipeline<B: Backend>(
             .create_pipeline_layout(layouts, None as Option<(_, _)>)
     }?;
 
+    // vertex descriptor
+    let vertex_desc = vertex_format
+        .iter()
+        .map(|f| (f.clone(), pso::VertexInputRate::Vertex))
+        .chain(Some((
+            VertexArgs::vertex(),
+            pso::VertexInputRate::Instance(1)
+        )))
+        .collect::<Vec<_>>();
+
     // get shaders
     let shader_vertex = unsafe { VERTEX.module(factory).unwrap() };
     let shader_fragment = unsafe { FRAGMENT.module(factory).unwrap() };
-
-    let vertex_format = VertexFormat::new((
-        Position::vertex(),
-        Normal::vertex(),
-        Tangent::vertex(),
-        TexCoord::vertex(),
-    ));
 
     // build the pipeline
     let pipes = PipelinesBuilder::new()
         .with_pipeline(
             PipelineDescBuilder::new()
-                .with_vertex_desc(&[(vertex_format, pso::VertexInputRate::Vertex)])
+                .with_vertex_desc(&vertex_desc)
                 .with_shaders(util::simple_shader_set(
                     &shader_vertex,
                     Some(&shader_fragment),
@@ -132,8 +129,8 @@ fn build_custom_pipeline<B: Backend>(
                 // alpha blended
                 .with_blend_targets(vec![pso::ColorBlendDesc {
                     mask: pso::ColorMask::ALL,
-                    blend: Some(pso::BlendState::ALPHA),
-                }]),
+                    blend: Some(pso::BlendState::PREMULTIPLIED_ALPHA),
+                }])
         )
         .build(factory, None);
     
@@ -175,21 +172,33 @@ impl<B: Backend> RenderGroupDesc<B, World> for DrawAtmosphereDesc {
                 ShaderStageFlags::FRAGMENT,
             ],
         )?;
-        //let vertex = DynamicVertexBuffer::new();
+
+        let mut vertex_format = vec![
+            Position::vertex(),
+            Normal::vertex(),
+            Tangent::vertex(),
+            TexCoord::vertex(),
+        ];
 
         let (pipeline, pipeline_layout) = build_custom_pipeline(
             factory,
             subpass,
             framebuffer_width,
             framebuffer_height,
+            &vertex_format,
             vec![env.raw_layout()],
         )?;
+
+        // not sure if/why this is needed but this is done in base_3d as well
+        vertex_format.sort();
 
         Ok(Box::new(DrawAtmosphere::<B> {
             pipeline: pipeline,
             pipeline_layout: pipeline_layout,
             env: env,
-            meshes: Vec::new(),
+            batches: Default::default(),
+            vertex_format: vertex_format,
+            models: DynamicVertexBuffer::new(),
             change: Default::default(),
         }))
     }
@@ -201,7 +210,9 @@ pub struct DrawAtmosphere<B: Backend> {
     pipeline: B::GraphicsPipeline,
     pipeline_layout: B::PipelineLayout,
     env: EnvironmentSub<B>,
-    meshes:Vec<u32>,
+    batches: OrderedOneLevelBatch<u32, VertexArgs>,
+    vertex_format: Vec<VertexFormat>,
+    models: DynamicVertexBuffer<B, VertexArgs>,
     change: ChangeDetection
 }
 
@@ -218,15 +229,11 @@ impl<B: Backend> RenderGroup<B, World> for DrawAtmosphere<B> {
         let (
             mesh_storage,
             visibility,
-            hiddens,
-            hiddens_prop,
             meshes,
             transforms,
         ) = <(
             Read<'_, AssetStorage<Mesh>>,
             ReadExpect<'_, Visibility>,
-            ReadStorage<'_, Hidden>,
-            ReadStorage<'_, HiddenPropagate>,
             ReadStorage<'_, Handle<Mesh>>,
             ReadStorage<'_, Transform>,
         )>::fetch(world);
@@ -234,22 +241,38 @@ impl<B: Backend> RenderGroup<B, World> for DrawAtmosphere<B> {
         // prepare environemnt
         self.env.process(factory, index, world);
 
-        // keep track if there are any changes
+        // clear batches
+        self.batches.swap_clear();
+
+        // refs
+        let batches_ref = &mut self.batches;
         let mut changed = false;
 
-        // prepare references to meshes for drawing
-        let mesh_count:usize = 0;
-        let mut mesh_vec = Vec::new();
-        for (mesh, transform) in (&meshes, &transforms).join() {
-            let id = mesh.id();
-            if mesh_storage.contains_id(id){
-                mesh_vec.push(id);
-            }
-        };
-        if mesh_vec.len() != self.meshes.len() {
-            self.meshes = mesh_vec;
-            changed = true;
-        }
+        // setup the batches
+        let mut joined = (&meshes, &transforms).join();
+        visibility
+            .visible_ordered
+            .iter()
+            .filter_map(|e| joined.get_unchecked(e.id()))
+            .map(|(mesh, tform)| {
+                ((mesh.id()),VertexArgs::from_object_data(tform, None))
+            })
+            .for_each_group(|mesh_id, data| {
+                if mesh_storage.contains_id(mesh_id) {
+                    batches_ref.insert(mesh_id, data.drain(..));
+                }
+            });
+        
+        // write models
+        self.models.write(
+            factory,
+            index,
+            self.batches.count() as u64,
+            Some(self.batches.data()),
+        );
+
+        // update changed status
+        changed = changed || self.batches.changed();
 
         self.change.prepare_result(index, changed)
     }
@@ -265,37 +288,35 @@ impl<B: Backend> RenderGroup<B, World> for DrawAtmosphere<B> {
         let layout = &self.pipeline_layout;
         let encoder = &mut encoder;
 
+        let models_loc = self.vertex_format.len() as u32;
+
         encoder.bind_graphics_pipeline(&self.pipeline);
         self.env.bind(index, layout, 0, encoder);
 
-        for mesh_id in &self.meshes {
-            if let Some(mesh) = B::unwrap_mesh(unsafe { mesh_storage.get_by_id_unchecked(*mesh_id) }) {
-                println!("draw mesh");
-                let vertex_format = VertexFormat::new((
-                    Position::vertex(),
-                    Normal::vertex(),
-                    Tangent::vertex(),
-                    TexCoord::vertex(),
-                ));
-                if let Err(error) = mesh.bind_and_draw(
-                    0,
-                    &[vertex_format],
-                    0..100,
-                    encoder,
-                ) {
-                    /*log::warn!(
-                        "Trying to draw a mesh that lacks {:?} vertex attributes. Pass {} requires attributes {:?}.",
-                        error.not_found.attributes,
-                        T::NAME,
-                        T::base_format(),
-                    );*/
+        if self.models.bind(index, models_loc, 0, encoder) {
+            for (mesh, range) in self.batches.iter() {
+                if let Some(mesh) =
+                    B::unwrap_mesh(unsafe { mesh_storage.get_by_id_unchecked(*mesh) })
+                {
+                    if let Err(error) = mesh.bind_and_draw(
+                        0,
+                        &self.vertex_format,
+                        range.clone(),
+                        encoder,
+                    ) {
+                        log::warn!(
+                            "Trying to draw a mesh that lacks {:?} vertex attributes. Pass {} requires attributes {:?}.",
+                            error.not_found.attributes,
+                            "Atmosphere",
+                            &self.vertex_format,
+                        );
+                    }
                 }
             }
         }
-
     }
 
-    fn dispose(mut self: Box<Self>, factory: &mut Factory<B>, _aux: &World) {
+    fn dispose(self: Box<Self>, factory: &mut Factory<B>, _aux: &World) {
         unsafe {
             factory.device().destroy_graphics_pipeline(self.pipeline);
             factory.device().destroy_pipeline_layout(self.pipeline_layout);
