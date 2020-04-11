@@ -40,7 +40,7 @@ Possible options
 
 ## roadmap 
 
-- Prepare other maps in the default rendy pbr material
+- Add normal map to the shader
 - Custom shader for the atmosphere
 - Stars background
 - FXAA antialiasing (because other AA is deeply embedded in the pipeline)

@@ -1,5 +1,6 @@
 mod debug;
 mod planet;
+mod render;
 
 use amethyst::{
     assets::{PrefabLoader, PrefabLoaderSystemDesc, RonFormat, PrefabData, ProgressCounter, AssetPrefab },
@@ -161,6 +162,7 @@ fn main() -> amethyst::Result<()> {
                     RenderToWindow::from_config_path(display_config_path)?.with_clear([0.0, 0.0, 0.0, 1.0]),
                 )
                 .with_plugin(RenderPbr3D::default())
+                .with_plugin(render::atmosphere::RenderAtmosphere::default())
                 .with_plugin(RenderDebugLines::default())
                 .with_plugin(RenderUi::default()),
         )?;
