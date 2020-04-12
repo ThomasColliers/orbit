@@ -48,6 +48,13 @@ pub struct RenderAtmosphere {
     target: Target,
 }
 
+impl RenderAtmosphere {
+    pub fn with_target(mut self, target: Target) -> Self {
+        self.target = target;
+        self
+    }
+}
+
 impl<B: Backend> RenderPlugin<B> for RenderAtmosphere {
     fn on_plan(
         &mut self,
