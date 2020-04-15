@@ -83,7 +83,7 @@ lazy_static::lazy_static! {
 
     static ref FRAGMENT:SpirvShader = SpirvShader::from_bytes(
         include_bytes!("../../assets/shader/atmosphere.frag.spv"),
-        ShaderStageFlags::VERTEX,
+        ShaderStageFlags::FRAGMENT,
         "main",
     ).unwrap();
 }

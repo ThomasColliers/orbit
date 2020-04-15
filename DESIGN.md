@@ -33,14 +33,10 @@ Material maps:
 - AO ao_map
 - Emissive (not needed I think)
 
-Possible options
-- ambient irradiance
-- ambient spec
-- env_brdf
-
 ## roadmap 
 
-- Add normal map to the shader
-- Custom shader for the atmosphere
-- Stars background
 - FXAA antialiasing (because other AA is deeply embedded in the pipeline)
+
+- Stars background
+- Sun in the distance
+- Tonemapping?
