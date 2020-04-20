@@ -2,41 +2,30 @@
 
 use amethyst::renderer::{
     bundle::{Target, TargetImage, RenderOrder, RenderPlan, RenderPlugin},
-    Backend, Factory, Mesh,
-    submodules::{DynamicVertexBuffer, DynamicUniform, EnvironmentSub },
-    ChangeDetection,
-    pod::VertexArgs,
+    Backend, Factory,
+    submodules::{DynamicUniform},
     pipeline::{PipelineDescBuilder, PipelinesBuilder},
     util,
-    batch::{GroupIterator, OrderedOneLevelBatch},
-};
-use amethyst::core::{
-    transform::Transform,
-    transform::components::Parent,
 };
 use amethyst::{
-    ecs::{NullStorage, World},
-    ecs::prelude::{ Join, Component, SystemData, ReadStorage, Read },
-    assets::{AssetStorage, Handle},
+    ecs::{World},
     error::Error,
-    utils::tag::{Tag},
     prelude::*,
     window::ScreenDimensions,
 };
-use derivative::Derivative;
 use rendy::{
     command::{QueueId, RenderPassEncoder},
     hal::{self, device::Device, pso, pso::ShaderStageFlags, format::Format},
     graph::{
         render::{PrepareResult, RenderGroup, RenderGroupDesc},
-        GraphContext, NodeBuffer, NodeImage,
+        GraphContext, NodeBuffer, NodeImage, ImageId
     },
     mesh::{
-        VertexFormat, TexCoord, Tangent, Position, Normal, AsVertex
+        VertexFormat, AsVertex
     },
     shader::{Shader, SpirvShader},
     memory,
-    resource::{Escape,BufferInfo,Buffer,DescriptorSet},
+    resource::{self,Escape,BufferInfo,Buffer,DescriptorSet,Handle as RendyHandle,DescriptorSetLayout,ImageView,ImageViewInfo},
 };
 use glsl_layout::*;
 
@@ -61,12 +50,11 @@ impl<B: Backend> RenderPlugin<B> for RenderFXAA {
         _world: &World
     ) -> Result<(), Error> {
         plan.extend_target(self.target, |ctx| {
-            let target_image = TargetImage::Color(Target::Custom("offscreen"), 0);
+            let source_image = TargetImage::Color(Target::Custom("offscreen"), 0);
+            let source_id = ctx.get_image(source_image).unwrap();
             ctx.add(
                 RenderOrder::Opaque,
-                DrawFXAADesc::new()
-                    .with_source(target_image.target())
-                    .builder(),
+                DrawFXAADesc::new(source_id).builder(),
             )?;
             Ok(())
         });
@@ -90,27 +78,23 @@ lazy_static::lazy_static! {
 }
 
 // plugin desc
-#[derive(Clone, PartialEq, Derivative)]
-#[derivative(Debug(bound = ""), Default(bound = ""))]
+#[derive(Clone, PartialEq, Debug)]
 pub struct DrawFXAADesc {
-    source: Target,
+    source: ImageId,
 }
 
 impl DrawFXAADesc {
-    pub fn new() -> Self {
-        Default::default()
-    }
-
-    pub fn with_source(mut self, source: Target) -> Self {
-        self.source = source;
-        self
+    pub fn new(source: ImageId) -> Self {
+        Self {
+            source: source
+        }
     }
 }
 
 impl<B: Backend> RenderGroupDesc<B, World> for DrawFXAADesc {
     fn build(
         self,
-        _ctx: &GraphContext<B>,
+        ctx: &GraphContext<B>,
         factory: &mut Factory<B>,
         _queue: QueueId,
         _aux: &World,
@@ -120,30 +104,54 @@ impl<B: Backend> RenderGroupDesc<B, World> for DrawFXAADesc {
         _buffers: Vec<NodeBuffer>,
         _images: Vec<NodeImage>,
     ) -> Result<Box<dyn RenderGroup<B, World>>, failure::Error> {
+        // this will keep our screen dimensions uniforms
         let env = DynamicUniform::new(factory, pso::ShaderStageFlags::FRAGMENT)?;
 
-        /*let env = EnvironmentSub::new(
-            factory,
-            [
-                ShaderStageFlags::VERTEX,
-                ShaderStageFlags::FRAGMENT,
-            ],
-        )?;*/
+        // get view on offscreen image
+        let image = ctx.get_image(self.source).unwrap();
+        let view = ImageView::create(
+            factory.device(),
+            ImageViewInfo {
+                view_kind:resource::ViewKind::D2,
+                format:hal::format::Format::Rgb8Unorm,
+                swizzle:hal::format::Swizzle::NO,
+                range:resource::SubresourceRange {
+                    aspects:hal::format::Aspects::COLOR,
+                    levels:0..1,
+                    layers:0..1,
+                }
+            },
+            image.clone(),
+        ).unwrap();
 
-        // setup the texture
-        /*let layout:Escape<DescriptorSet<B>> = factory.create_descriptor_set_layout(
-            util::set_layout_bindings(
-                Some((
-                    1,
-                    pso::DescriptorType::UniformBuffer,
-                    pso::ShaderStageFlags::FRAGMENT
-                ))
-            ).unwrap().into();*/
-        //let descriptor_set = factory.create_descriptor_set_layout().unwrap();
-        /*
-        // create descriptor set
-        let descriptor_set = factory.create_descriptor_set(layout: Handle<DescriptorSetLayout<B>>)
-        */
+        // setup the offscreen texture descriptor set
+        let texture_layout:RendyHandle<DescriptorSetLayout<B>> = RendyHandle::from(
+            factory
+            .create_descriptor_set_layout(vec![hal::pso::DescriptorSetLayoutBinding {
+                binding: 0,
+                ty: pso::DescriptorType::CombinedImageSampler,
+                count: 1,
+                stage_flags: pso::ShaderStageFlags::FRAGMENT,
+                immutable_samplers: false,
+            }])
+            .unwrap()
+        );
+        let texture_set = factory.create_descriptor_set(texture_layout.clone()).unwrap();
+
+        // write to the texture description set
+        unsafe {
+            factory.device().write_descriptor_sets(vec![
+                hal::pso::DescriptorSetWrite {
+                    set: texture_set.raw(),
+                    binding: 0,
+                    array_offset: 0,
+                    descriptors: vec![pso::Descriptor::Image(
+                        view.raw(),
+                        hal::image::Layout::ShaderReadOnlyOptimal
+                    )]
+                }
+            ]);
+        }
 
         // setup the pipeline
         let (pipeline, pipeline_layout) = build_custom_pipeline(
@@ -152,8 +160,9 @@ impl<B: Backend> RenderGroupDesc<B, World> for DrawFXAADesc {
             framebuffer_width,
             framebuffer_height,
             vec![
-                env.raw_layout()
-            ], //vec![env.raw_layout()],
+                env.raw_layout(),
+                texture_layout.raw(),
+            ],
         )?;
 
         // create a static vertex buffer
@@ -187,6 +196,7 @@ impl<B: Backend> RenderGroupDesc<B, World> for DrawFXAADesc {
             pipeline_layout: pipeline_layout,
             vertex_buffer: vbuf,
             env:env,
+            texture_set:texture_set
         }))
     }
 }
@@ -259,9 +269,6 @@ pub struct FXAAUniformArgs {
     pub screen_height: float,
 }
 
-// submodule for our texture
-
-
 /// Vertex Arguments to pass into shader.
 /// layout(location = 0) out VertexData {
 ///    vec2 position;
@@ -292,6 +299,7 @@ pub struct DrawFXAA<B: Backend> {
     pipeline_layout: B::PipelineLayout,
     vertex_buffer: Escape<Buffer<B>>,
     env: DynamicUniform<B, FXAAUniformArgs>,
+    texture_set: Escape<DescriptorSet<B>>,
 }
 
 impl<B: Backend> RenderGroup<B, World> for DrawFXAA<B> {
@@ -310,7 +318,8 @@ impl<B: Backend> RenderGroup<B, World> for DrawFXAA<B> {
             screen_height: dimensions.height(),
         }.std140());
         
-        PrepareResult::DrawReuse
+        //PrepareResult::DrawReuse
+        PrepareResult::DrawRecord
     }
 
     fn draw_inline(
@@ -318,7 +327,7 @@ impl<B: Backend> RenderGroup<B, World> for DrawFXAA<B> {
         mut encoder: RenderPassEncoder<'_, B>,
         index: usize,
         _subpass: hal::pass::Subpass<'_, B>,
-        resources: &World,
+        _resources: &World,
     ) {
         let layout = &self.pipeline_layout;
         let encoder = &mut encoder;
@@ -329,11 +338,14 @@ impl<B: Backend> RenderGroup<B, World> for DrawFXAA<B> {
         // bind the dynamic uniform buffer
         self.env.bind(index, layout, 0, encoder);
 
-        // TODO: bind material sub?
-
-        // draw vertices
         unsafe {
+            // bind texture descriptor
+            encoder.bind_graphics_descriptor_sets(layout, 1, Some(self.texture_set.raw()), std::iter::empty());
+
+            // bind vertex buffer
             encoder.bind_vertex_buffers(0, Some((self.vertex_buffer.raw(), 0)));
+
+            // and draw
             encoder.draw(0..6, 0..1);
         }
     }
