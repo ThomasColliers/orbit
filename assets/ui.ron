@@ -30,7 +30,7 @@ Container(
             transform: (
                 id: "help_container",
                 width:450.,
-                height: 210.,
+                height: 240.,
                 anchor: BottomRight,
                 hidden: true,
             ),
@@ -47,7 +47,7 @@ Container(
                         anchor: Middle,
                     ),
                     text: (
-                        text: "Shortcuts:\n h - toggle help panel\n d - toggle debug lines\n f - toggle framerate",
+                        text: "Shortcuts:\n h - toggle help panel\n F10 - toggle FXAA\n F11 - toggle debug lines\n F12 - toggle framerate",
                         font_size: 20.,
                         color: (1.,1.,1.,1.),
                         line_mode: Wrap,

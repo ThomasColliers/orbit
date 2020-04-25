@@ -14,10 +14,11 @@ use amethyst::{
         tag::{Tag}
     },
     derive::SystemDesc,
-    ecs::prelude::{Join, Read, System, SystemData, WriteStorage, Entities, NullStorage, Component },
+    ecs::prelude::{Join, Read, Write, System, SystemData, WriteStorage, Entities, NullStorage, Component },
     input::{StringBindings, InputEvent},
     ui::{UiFinder, UiText},
 };
+use crate::render::fxaa::FxaaSettings;
 
 #[derive(SystemDesc)]
 #[system_desc(name(DebugSystemDesc))]
@@ -49,9 +50,10 @@ impl<'s> System<'s> for DebugSystem {
         UiFinder<'s>,
         WriteStorage<'s, UiText>,
         WriteStorage<'s, Tag<FpsDisplay>>,
+        Write<'s, FxaaSettings>,
     );
 
-    fn run(&mut self, (events, mut hidden, mut debuglines, entities, fps_counter, time, ui_finder, mut ui_texts, mut fps_tags): Self::SystemData) {
+    fn run(&mut self, (events, mut hidden, mut debuglines, entities, fps_counter, time, ui_finder, mut ui_texts, mut fps_tags, mut fxaa_settings): Self::SystemData) {
         // set fps display if it's available
         if let Some(result) = (&*entities, &fps_tags).join().next() {
             if time.frame_number() % 20 == 0 {
@@ -96,6 +98,9 @@ impl<'s> System<'s> for DebugSystem {
                         if !has_removed {
                             entities.build_entity().with(create_debug_lines(), &mut debuglines).build();
                         }
+                    },
+                    "fxaa" => {
+                        fxaa_settings.enabled = !fxaa_settings.enabled;
                     },
                     _ => ()
                 }

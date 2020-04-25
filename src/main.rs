@@ -3,7 +3,7 @@ mod planet;
 mod render;
 
 use amethyst::{
-    assets::{PrefabLoader, PrefabLoaderSystemDesc, RonFormat, PrefabData, ProgressCounter, AssetPrefab },
+    assets::{PrefabLoader, PrefabLoaderSystemDesc, RonFormat, PrefabData, ProgressCounter, AssetPrefab, Processor },
     core::{
         Transform,TransformBundle,
         frame_limiter::FrameRateLimitStrategy,
@@ -24,8 +24,11 @@ use amethyst::{
         plugins::{RenderPbr3D, RenderToWindow, RenderDebugLines },
         rendy::mesh::{Normal, Position, Tangent, TexCoord},
         types::DefaultBackend,
+        mtl::Material,
         RenderingBundle,
         bundle::Target,
+        MeshProcessorSystem, TextureProcessorSystem, visibility::VisibilitySortingSystem,
+        RenderingSystem
     },
     utils::{
         application_root_dir, 
@@ -33,10 +36,11 @@ use amethyst::{
         fps_counter::{FpsCounterBundle},
         tag::{Tag},
     },
-    ui::{RenderUi, UiBundle, UiCreator },
+    ui::{ UiBundle, UiCreator, UiGlyphsSystemDesc },
     input::{
         is_close_requested, is_key_down, InputBundle, StringBindings
     },
+    window::{WindowBundle},
     controls::{ArcBallControlBundle, ControlTagPrefab},
     winit::VirtualKeyCode,
     Error
@@ -70,6 +74,9 @@ impl SimpleState for MainState {
         // and create the component and entity
         data.world.register::<DebugLinesComponent>();
         data.world.register::<debug::FpsDisplay>();
+
+        // set fxaa enabled
+        data.world.insert(render::fxaa::FxaaSettings { enabled:true });
 
         // register custom components
         data.world.register::<planet::Planet>();
@@ -159,7 +166,33 @@ fn main() -> amethyst::Result<()> {
             "planet_system",
             &[]
         )
-        .with_bundle(
+        .with_system_desc(
+            UiGlyphsSystemDesc::<DefaultBackend>::default(),
+            "ui_glyph_system",
+            &[],
+        )
+        .with(
+            VisibilitySortingSystem::new(),
+            "visibility_sorting_system",
+            &[],
+        )
+        .with(
+            MeshProcessorSystem::<DefaultBackend>::default(),
+            "mesh_processor",
+            &[],
+        )
+        .with(
+            TextureProcessorSystem::<DefaultBackend>::default(),
+            "texture_processor",
+            &[],
+        )
+        .with(Processor::<Material>::new(), "material_processor", &[])
+        .with_bundle(WindowBundle::from_config_path(display_config_path)?)?
+        .with_thread_local(RenderingSystem::<DefaultBackend, _>::new(
+            render::graph::RenderGraph::default(),
+        ));
+
+        /*.with_bundle(
             RenderingBundle::<DefaultBackend>::new()
                 .with_plugin(
                     RenderToWindow::from_config_path(display_config_path)?.with_clear([0.0, 0.0, 0.0, 1.0]),
@@ -169,7 +202,7 @@ fn main() -> amethyst::Result<()> {
                 .with_plugin(RenderDebugLines::default().with_target(Target::Custom("offscreen")))
                 .with_plugin(render::fxaa::RenderFXAA::default())
                 .with_plugin(RenderUi::default()),
-        )?;
+        )?;*/
 
     // build application and run it
     let mut game = Application::build(assets_dir, MainState::default())?
