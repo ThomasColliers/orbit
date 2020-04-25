@@ -11,7 +11,7 @@
                 "variable": "CARGO_MANIFEST_DIR"
             }
         ],
-        "executable": "/home/ego/Projects/orbit/target/debug/orbit",
+        "executable": "/home/ego/Projects/orbit/target/release/orbit",
         "inject": false,
         "numQueuedFrames": 0,
         "options": {

@@ -65,17 +65,9 @@ impl GraphCreator<DefaultBackend> for RenderGraph {
 
         // HDR color output
         let hdr = graph_builder.create_image(
-            Kind::D2(dimensions.width() as u32, dimensions.height() as u32, 1, 1),
-            1,
-            Format::Rgba8Unorm,
-            Some(ClearValue::Color([0.0, 0.0, 0.0, 1.0].into())),
-        );
-
-        // Color and depth outputs
-        let color = graph_builder.create_image(
             window_kind,
             1,
-            surface_format,
+            Format::Rgba8Unorm,
             Some(ClearValue::Color([0.0, 0.0, 0.0, 1.0].into())),
         );
         let depth = graph_builder.create_image(
@@ -85,6 +77,14 @@ impl GraphCreator<DefaultBackend> for RenderGraph {
             Some(ClearValue::DepthStencil(ClearDepthStencil(1.0, 0))),
         );
 
+        // Post-processed output
+        let post_processed = graph_builder.create_image(
+            window_kind,
+            1,
+            surface_format, //Format::Rgba8Unorm,
+            Some(ClearValue::Color([0.0, 0.0, 0.0, 1.0].into())),
+        );
+
         // Main render pass
         let main_pass = graph_builder.add_node(
             SubpassBuilder::new()
@@ -92,7 +92,6 @@ impl GraphCreator<DefaultBackend> for RenderGraph {
                 .with_group(DrawDebugLinesDesc::new().builder())
                 .with_group(DrawPbrTransparentDesc::default().builder())
                 .with_group(crate::render::atmosphere::DrawAtmosphereDesc::default().builder())
-                .with_group(DrawUiDesc::default().builder())
                 .with_color(hdr)
                 .with_depth_stencil(depth)
                 .into_pass(),
@@ -104,13 +103,23 @@ impl GraphCreator<DefaultBackend> for RenderGraph {
                 .with_image(hdr)
                 .into_subpass()
                 .with_dependency(main_pass)
-                .with_color(color)
+                .with_color(post_processed)
+                .into_pass()
+        );
+
+        // UI pass
+        let ui_pass = graph_builder.add_node(
+            SubpassBuilder::new()
+                .with_group(DrawUiDesc::default().builder())
+                .with_dependency(fxaa_pass)
+                .with_color(post_processed)
+                .with_depth_stencil(depth)
                 .into_pass()
         );
 
         // Finally, add the pass to the graph
         let _present = graph_builder
-            .add_node(PresentNode::builder(factory, surface, color).with_dependency(fxaa_pass));
+            .add_node(PresentNode::builder(factory, surface, post_processed).with_dependency(ui_pass));
 
         graph_builder
     }

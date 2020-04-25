@@ -15,8 +15,6 @@ Material maps:
 
 ## roadmap 
 
-- Higher resolution sphere
-- Setup the UI to render after FXAA
 - HDR/Tonemapping
 - Stars background
 - Sun in the distance
