@@ -15,10 +15,7 @@ Material maps:
 
 ## roadmap 
 
-- Toggle debug lines
-- Toggle FXAA
 - Higher resolution sphere
-- Add back the lines
 - Setup the UI to render after FXAA
 - HDR/Tonemapping
 - Stars background
