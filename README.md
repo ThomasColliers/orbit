@@ -1,4 +1,6 @@
-# orbit
+# Orbit (work in progress)
+
+Escape a decaying earth. WIP Amethyst game
 
 ## How to run
 
