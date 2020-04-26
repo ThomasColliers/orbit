@@ -1,6 +1,7 @@
 mod debug;
 mod planet;
 mod render;
+mod controls;
 
 use amethyst::{
     assets::{PrefabLoader, PrefabLoaderSystemDesc, RonFormat, PrefabData, ProgressCounter, AssetPrefab, Processor },
@@ -156,6 +157,11 @@ fn main() -> amethyst::Result<()> {
         .with_bundle(UiBundle::<StringBindings>::new())?
         .with_bundle(FpsCounterBundle::default())?
         .with_bundle(ArcBallControlBundle::<StringBindings>::new())?
+        .with_system_desc(
+            controls::CameraControlSystemDesc::default(),
+            "camera_controls",
+            &["input_system"],
+        )
         .with_system_desc(
             debug::DebugSystemDesc::default(),
             "debug_sytem",

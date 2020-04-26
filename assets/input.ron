@@ -4,6 +4,7 @@
 */
 (
     axes: {
+        "zoom": Emulated( pos: MouseWheel(ScrollUp), neg: MouseWheel(ScrollDown)), // this isn't working at the moment
     },
     actions: {
         "help": [[Key(H)]],
