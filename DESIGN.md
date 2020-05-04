@@ -15,9 +15,12 @@ Material maps:
 
 ## roadmap 
 
-- HDR/Tonemapping
-- Stars background
 - Sun in the distance
+- Stars background
+
+- HDR/Tonemapping
+
+- Explore shadow mapping
 
 - Create animation to progress the earth by 1 million years
 
