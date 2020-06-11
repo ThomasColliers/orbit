@@ -255,7 +255,7 @@ where B: hal::Backend {
                 image_handle.clone(),
                 ImageViewInfo {
                     view_kind: resource::ViewKind::D2,
-                    format: hal::format::Format::Rgba8Unorm, //Rgba32Sfloat,
+                    format: hal::format::Format::Rgba32Sfloat, //Rgba8Unorm,
                     swizzle: hal::format::Swizzle::NO,
                     range: images[0].range.clone(),
                 },

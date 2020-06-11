@@ -16,12 +16,9 @@ Material maps:
 ## roadmap 
 
 - Sun in the distance
+- HDR/Tonemapping
+- Create animation to progress the earth by 1 million years
 - Stars background
 
-- HDR/Tonemapping
-
-- Explore shadow mapping
-
-- Create animation to progress the earth by 1 million years
-
 - Build generative surface of the earth
+- Explore shadow mapping

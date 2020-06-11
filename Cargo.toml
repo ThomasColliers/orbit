@@ -5,7 +5,7 @@ authors = ["Thomas Colliers <mail@thomascolliers.com>"]
 edition = "2018"
 
 [dependencies]
-amethyst = { path = "/home/ego/Projects/amethyst" }
+amethyst = { path = "/home/ego/projects/amethyst" }
 log = { version = "0.4.8", features = ["serde"] }
 serde = { version = "1.0.104", features = ["derive"] }
 derivative = "1.0.3"

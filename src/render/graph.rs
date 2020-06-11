@@ -67,7 +67,7 @@ impl GraphCreator<DefaultBackend> for RenderGraph {
         let hdr = graph_builder.create_image(
             window_kind,
             1,
-            Format::Rgba8Unorm,
+            Format::Rgba32Sfloat,
             Some(ClearValue::Color([0.0, 0.0, 0.0, 1.0].into())),
         );
         let depth = graph_builder.create_image(
@@ -92,6 +92,7 @@ impl GraphCreator<DefaultBackend> for RenderGraph {
                 .with_group(DrawDebugLinesDesc::new().builder())
                 .with_group(DrawPbrTransparentDesc::default().builder())
                 .with_group(crate::render::atmosphere::DrawAtmosphereDesc::default().builder())
+                .with_group(crate::render::sun::DrawSunDesc::default().builder())
                 .with_color(hdr)
                 .with_depth_stencil(depth)
                 .into_pass(),

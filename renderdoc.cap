@@ -7,16 +7,22 @@
             {
                 "separator": "Platform style",
                 "type": "Set",
-                "value": "/home/ego/Projects/orbit",
+                "value": "/home/ego/projects/orbit",
                 "variable": "CARGO_MANIFEST_DIR"
+            },
+            {
+                "separator": "Platform style",
+                "type": "Set",
+                "value": "x11",
+                "variable": "WINIT_UNIX_BACKEND"
             }
         ],
-        "executable": "/home/ego/Projects/orbit/target/release/orbit",
+        "executable": "/home/ego/projects/orbit/target/release/orbit",
         "inject": false,
         "numQueuedFrames": 0,
         "options": {
             "allowFullscreen": true,
-            "allowVSync": true,
+            "allowVSync": false,
             "apiValidation": false,
             "captureAllCmdLists": false,
             "captureCallstacks": false,
