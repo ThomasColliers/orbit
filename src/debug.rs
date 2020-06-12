@@ -19,6 +19,7 @@ use amethyst::{
     ui::{UiFinder, UiText},
 };
 use crate::render::fxaa::FxaaSettings;
+use crate::render::tonemap::TonemapSettings;
 
 #[derive(SystemDesc)]
 #[system_desc(name(DebugSystemDesc))]
@@ -51,9 +52,10 @@ impl<'s> System<'s> for DebugSystem {
         WriteStorage<'s, UiText>,
         WriteStorage<'s, Tag<FpsDisplay>>,
         Write<'s, FxaaSettings>,
+        Write<'s, TonemapSettings>,
     );
 
-    fn run(&mut self, (events, mut hidden, mut debuglines, entities, fps_counter, time, ui_finder, mut ui_texts, mut fps_tags, mut fxaa_settings): Self::SystemData) {
+    fn run(&mut self, (events, mut hidden, mut debuglines, entities, fps_counter, time, ui_finder, mut ui_texts, mut fps_tags, mut fxaa_settings, mut tonemap_settings): Self::SystemData) {
         // set fps display if it's available
         if let Some(result) = (&*entities, &fps_tags).join().next() {
             if time.frame_number() % 20 == 0 {
@@ -101,6 +103,15 @@ impl<'s> System<'s> for DebugSystem {
                     },
                     "fxaa" => {
                         fxaa_settings.enabled = !fxaa_settings.enabled;
+                    },
+                    "tonemap" => {
+                        tonemap_settings.enabled = !tonemap_settings.enabled;
+                    },
+                    "exposure_incr" => {
+                        tonemap_settings.exposure += 0.1;
+                    },
+                    "exposure_decr" => {
+                        tonemap_settings.exposure -= 0.1;
                     },
                     _ => ()
                 }

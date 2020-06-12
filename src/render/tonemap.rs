@@ -1,6 +1,4 @@
-// fxaa render pipeline
-// based on tonepass pipeline from pbr-rendy: https://github.com/termhn/rendy-pbr/blob/master/src/node/pbr/tonemap.rs
-
+// tonemapping render pipeline
 use amethyst::{
     ecs::{World},
     prelude::*,
@@ -37,13 +35,14 @@ use rendy::{
 use glsl_layout::*;
 use std::mem::size_of;
 
-// resource to keep track if fxaa is enabled
+// tonemapping settings resource
 #[derive(Default)]
-pub struct FxaaSettings {
+pub struct TonemapSettings {
     pub enabled: bool,
+    pub exposure: f32,
 }
 
-// load our shader pair
+// shader pair
 lazy_static::lazy_static! {
     static ref VERTEX:SpirvShader = SpirvShader::from_bytes(
         include_bytes!("../../assets/shader/fsquad.vert.spv"),
@@ -52,7 +51,7 @@ lazy_static::lazy_static! {
     ).unwrap();
 
     static ref FRAGMENT:SpirvShader = SpirvShader::from_bytes(
-        include_bytes!("../../assets/shader/fxaa.frag.spv"),
+        include_bytes!("../../assets/shader/tonemap.frag.spv"),
         ShaderStageFlags::FRAGMENT,
         "main",
     ).unwrap();
@@ -62,35 +61,25 @@ lazy_static::lazy_static! {
         .with_fragment(&*FRAGMENT).unwrap();
 }
 
-// uniform arguments
-/// layout(std140, set = 0, binding = 0) uniform FXAAUniformArgs {
-///    uniform float screen_width;
-///    uniform float screen_height;
-///    uniform bool enabled;
-/// };
+// uniform args
 #[derive(Clone, Copy, Debug, AsStd140)]
 #[repr(C, align(4))]
-pub struct FXAAUniformArgs {
-    pub screen_width: float,
-    pub screen_height: float,
+pub struct TonemapUniformArgs {
     pub enabled: boolean,
+    pub exposure: float,
 }
 
-/// Vertex Arguments to pass into shader.
-/// layout(location = 0) out VertexData {
-///    vec2 position;
-///    vec2 tex_coord;
-/// } vertex;
+// vertex args
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, AsStd140)]
 #[repr(C, align(4))]
-pub struct FXAAVertexArgs {
+pub struct TonemapVertexArgs {
     pub position: vec2,
     pub tex_coord: vec2,
 }
 
 /// Required to send data into the shader.
 /// These names must match the shader.
-impl AsVertex for FXAAVertexArgs {
+impl AsVertex for TonemapVertexArgs {
     fn vertex() -> VertexFormat {
         VertexFormat::new((
             (Format::Rg32Sfloat, "position"),
@@ -98,7 +87,6 @@ impl AsVertex for FXAAVertexArgs {
         ))
     }
 }
-
 
 // the pipeline itself
 #[derive(Debug, Default)]
@@ -122,7 +110,7 @@ struct Settings {
 }
 
 impl Settings {
-    const UNIFORM_SIZE:u64 = size_of::<FXAAUniformArgs>() as u64;
+    const UNIFORM_SIZE:u64 = size_of::<TonemapUniformArgs>() as u64;
 
     #[inline]
     fn buffer_frame_size(&self) -> u64 {
@@ -160,7 +148,7 @@ where B: hal::Backend {
         hal::pso::VertexInputRate,
     )> {
         vec![
-            FXAAVertexArgs::vertex().gfx_vertex_input_desc(hal::pso::VertexInputRate::Vertex),
+            TonemapVertexArgs::vertex().gfx_vertex_input_desc(hal::pso::VertexInputRate::Vertex),
         ]
     }
 
@@ -255,7 +243,7 @@ where B: hal::Backend {
                 image_handle.clone(),
                 ImageViewInfo {
                     view_kind: resource::ViewKind::D2,
-                    format: hal::format::Format::Rgba8Unorm,
+                    format: hal::format::Format::Rgba32Sfloat, //Rgba8Unorm,
                     swizzle: hal::format::Swizzle::NO,
                     range: images[0].range.clone(),
                 },
@@ -305,7 +293,7 @@ where B: hal::Backend {
         }
 
         // create a static vertex buffer
-        let vbuf_size = FXAAVertexArgs::vertex().stride as u64 * 6;
+        let vbuf_size = TonemapVertexArgs::vertex().stride as u64 * 6;
         let mut vertex_buffer = factory.create_buffer(
             BufferInfo {
                 size: vbuf_size,
@@ -319,12 +307,12 @@ where B: hal::Backend {
                     &mut vertex_buffer,
                     0,
                     &[
-                        FXAAVertexArgs { position:[-1f32,1f32].into(), tex_coord:[0f32,1f32].into() },
-                        FXAAVertexArgs { position:[1f32,-1f32].into(), tex_coord:[1f32,0f32].into() },
-                        FXAAVertexArgs { position:[-1f32,-1f32].into(), tex_coord:[0f32,0f32].into() },
-                        FXAAVertexArgs { position:[1f32,-1f32].into(), tex_coord:[1f32,0f32].into() },
-                        FXAAVertexArgs { position:[-1f32,1f32].into(), tex_coord:[0f32,1f32].into() },
-                        FXAAVertexArgs { position:[1f32,1f32].into(), tex_coord:[1f32,1f32].into() },
+                        TonemapVertexArgs { position:[-1f32,1f32].into(), tex_coord:[0f32,1f32].into() },
+                        TonemapVertexArgs { position:[1f32,-1f32].into(), tex_coord:[1f32,0f32].into() },
+                        TonemapVertexArgs { position:[-1f32,-1f32].into(), tex_coord:[0f32,0f32].into() },
+                        TonemapVertexArgs { position:[1f32,-1f32].into(), tex_coord:[1f32,0f32].into() },
+                        TonemapVertexArgs { position:[-1f32,1f32].into(), tex_coord:[0f32,1f32].into() },
+                        TonemapVertexArgs { position:[1f32,1f32].into(), tex_coord:[1f32,1f32].into() },
                     ],
                 )
                 .unwrap();
@@ -357,7 +345,7 @@ where
         world: &World,
     ) -> PrepareResult {
         let dimensions = world.read_resource::<ScreenDimensions>();
-        let fxaa_settings = world.read_resource::<FxaaSettings>();
+        let tonemap_settings = world.read_resource::<TonemapSettings>();
 
         // write to the uniform
         unsafe {
@@ -365,10 +353,9 @@ where
                 .upload_visible_buffer(
                     &mut self.buffer,
                     self.settings.uniform_offset(index as u64),
-                    &[FXAAUniformArgs {
-                        screen_width: dimensions.width(),
-                        screen_height: dimensions.height(),
-                        enabled: fxaa_settings.enabled.into(),
+                    &[TonemapUniformArgs {
+                        enabled: tonemap_settings.enabled.into(),
+                        exposure: tonemap_settings.exposure.into(),
                     }.std140()],
                 )
                 .unwrap()

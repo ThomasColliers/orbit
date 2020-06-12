@@ -8,6 +8,9 @@
     },
     actions: {
         "help": [[Key(H)]],
+        "tonemap": [[Key(F7)]],
+        "exposure_decr": [[Key(F8)]],
+        "exposure_incr": [[Key(F9)]],
         "fxaa": [[Key(F10)]],
         "debuglines": [[Key(F11)]],
         "fps": [[Key(F12)]],

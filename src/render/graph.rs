@@ -77,11 +77,19 @@ impl GraphCreator<DefaultBackend> for RenderGraph {
             Some(ClearValue::DepthStencil(ClearDepthStencil(1.0, 0))),
         );
 
-        // Post-processed output
-        let post_processed = graph_builder.create_image(
+        // Tone mapped output
+        let tonemapped = graph_builder.create_image(
             window_kind,
             1,
-            surface_format, //Format::Rgba8Unorm,
+            Format::Rgba8Unorm, //Format::Rgba8Unorm,
+            Some(ClearValue::Color([0.0, 0.0, 0.0, 1.0].into())),
+        );
+
+        // Antialiased output
+        let antialiased = graph_builder.create_image(
+            window_kind,
+            1,
+            surface_format,
             Some(ClearValue::Color([0.0, 0.0, 0.0, 1.0].into())),
         );
 
@@ -98,13 +106,23 @@ impl GraphCreator<DefaultBackend> for RenderGraph {
                 .into_pass(),
         );
 
-        // FXAA pass
-        let fxaa_pass = graph_builder.add_node(
-            crate::render::fxaa::Pipeline::builder()
+        // Post processing pass
+        let tonemap_pass = graph_builder.add_node(
+            crate::render::tonemap::Pipeline::builder()
                 .with_image(hdr)
                 .into_subpass()
                 .with_dependency(main_pass)
-                .with_color(post_processed)
+                .with_color(tonemapped)
+                .into_pass()
+        );
+
+        // FXAA pass
+        let fxaa_pass = graph_builder.add_node(
+            crate::render::fxaa::Pipeline::builder()
+                .with_image(tonemapped)
+                .into_subpass()
+                .with_dependency(tonemap_pass)
+                .with_color(antialiased)
                 .into_pass()
         );
 
@@ -113,14 +131,14 @@ impl GraphCreator<DefaultBackend> for RenderGraph {
             SubpassBuilder::new()
                 .with_group(DrawUiDesc::default().builder())
                 .with_dependency(fxaa_pass)
-                .with_color(post_processed)
+                .with_color(antialiased)
                 .with_depth_stencil(depth)
                 .into_pass()
         );
 
         // Finally, add the pass to the graph
         let _present = graph_builder
-            .add_node(PresentNode::builder(factory, surface, post_processed).with_dependency(ui_pass));
+            .add_node(PresentNode::builder(factory, surface, antialiased).with_dependency(ui_pass));
 
         graph_builder
     }

@@ -79,6 +79,7 @@ impl SimpleState for MainState {
 
         // set fxaa enabled
         data.world.insert(render::fxaa::FxaaSettings { enabled:true });
+        data.world.insert(render::tonemap::TonemapSettings { enabled:true, exposure:1.0 });
 
         // register custom components
         data.world.register::<planet::Planet>();

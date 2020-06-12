@@ -37,11 +37,6 @@ Prefab (
                 )
             )
         ),
-        (
-            data: (
-                light: (ambient_color: ((0.01, 0.01, 0.01, 1.0))),
-            ),
-        ),
         ( // planet
             data: (
                 transform: (
